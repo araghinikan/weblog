@@ -3,8 +3,6 @@ package com.nikan.weblog.model;
 
 import jakarta.persistence.*;
 import org.hibernate.annotations.CreationTimestamp;
-
-import javax.management.relation.Role;
 import java.time.LocalDateTime;
 
 @Entity
