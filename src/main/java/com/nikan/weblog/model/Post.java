@@ -20,7 +20,6 @@ public class Post {
     private Tag tag;
     private Category category;
     private User author;
-    private Comment comment;
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -64,6 +63,7 @@ public class Post {
         this.excerpt = excerpt;
     }
 
+    @Enumerated(EnumType.STRING)
     public Status getStatus() {
         return status;
     }
@@ -134,11 +134,19 @@ public class Post {
         this.category = category;
     }
 
-    public Comment getComment() {
-        return comment;
+    @PrePersist
+    @PreUpdate
+    public void generateSlug() {
+        if (this.slug == null || this.slug.isBlank()) {
+            String base = this.title + "-" + this.id;
+            this.slug = slugify(base);
+        }
     }
 
-    public void setComment(Comment comment) {
-        this.comment = comment;
+    private String slugify(String input) {
+        if (input == null) return null;
+        return input.toLowerCase()
+                .replaceAll("[^a-z0-9]+", "-")
+                .replaceAll("^-|-$", "");
     }
 }

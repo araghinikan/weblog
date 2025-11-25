@@ -5,6 +5,9 @@ import com.nikan.weblog.dto.UserDto;
 import com.nikan.weblog.model.Role;
 import com.nikan.weblog.model.User;
 import com.nikan.weblog.service.UserServiceImpl;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
@@ -27,10 +30,10 @@ public class UserController {
 
     @GetMapping
     @ResponseBody
-    public List<UserDto> getAll() {
-        List<User> users = userServiceImpl.findAll();
-        return users.stream().map(u -> new UserDto(u.getUsername(), u.getRole()))
-                .collect(Collectors.toList());
+    public ResponseEntity<Page<UserDto>> getAll(Pageable pageable) {
+        Page<User> users = userServiceImpl.findAll(pageable);
+        Page<UserDto> result = users.map(u -> new UserDto(u.getUsername(), u.getRole()));
+        return ResponseEntity.ok(result);
     }
 
     @PostMapping("/register")

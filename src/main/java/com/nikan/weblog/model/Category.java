@@ -1,8 +1,6 @@
 package com.nikan.weblog.model;
 
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
+import jakarta.persistence.*;
 
 public class Category {
     private int id;
@@ -42,5 +40,21 @@ public class Category {
 
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    @PrePersist
+    @PreUpdate
+    public void generateSlug() {
+        if (this.slug == null || this.slug.isBlank()) {
+            String base = this.name + "-" + this.id;
+            this.slug = slugify(base);
+        }
+    }
+
+    private String slugify(String input) {
+        if (input == null) return null;
+        return input.toLowerCase()
+                .replaceAll("[^a-z0-9]+", "-")
+                .replaceAll("^-|-$", "");
     }
 }

@@ -1,8 +1,6 @@
 package com.nikan.weblog.model;
 
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
+import jakarta.persistence.*;
 import org.hibernate.annotations.CreationTimestamp;
 
 public class Comment {
@@ -11,7 +9,18 @@ public class Comment {
     private String authorName;
     private String authorEmail;
     private String approved;
+    private Post post;
     private String createdAt;
+
+    @ManyToOne
+    @JoinColumn(name = "post_id")
+    public Post getPost() {
+        return post;
+    }
+
+    public void setPost(Post post) {
+        this.post = post;
+    }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

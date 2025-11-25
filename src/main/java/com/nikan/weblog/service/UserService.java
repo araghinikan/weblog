@@ -1,11 +1,11 @@
 package com.nikan.weblog.service;
 
 import com.nikan.weblog.model.User;
-
-import java.util.List;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 public interface UserService {
-    List<User> findAll();
+    Page<User> findAll(Pageable pageable);
     void save(User user);
     User findByUsername(String name);
 }

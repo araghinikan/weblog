@@ -1,21 +1,19 @@
 package com.nikan.weblog.model;
 
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
+import jakarta.persistence.*;
 
 public class Tag {
-    private String id;
+    private int id;
     private String name;
     private String slug;
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    public String getId() {
+    public int getId() {
         return id;
     }
 
-    public void setId(String id) {
+    public void setId(int id) {
         this.id = id;
     }
 
@@ -33,5 +31,21 @@ public class Tag {
 
     public void setSlug(String slug) {
         this.slug = slug;
+    }
+
+    @PrePersist
+    @PreUpdate
+    public void generateSlug() {
+        if (this.slug == null || this.slug.isBlank()) {
+            String base = this.name + "-" + this.id;
+            this.slug = slugify(base);
+        }
+    }
+
+    private String slugify(String input) {
+        if (input == null) return null;
+        return input.toLowerCase()
+                .replaceAll("[^a-z0-9]+", "-")
+                .replaceAll("^-|-$", "");
     }
 }
