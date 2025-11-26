@@ -3,6 +3,7 @@ package com.nikan.weblog.model;
 import jakarta.persistence.*;
 import org.hibernate.annotations.CreationTimestamp;
 
+@Entity
 public class Comment {
     private int id;
     private String content;

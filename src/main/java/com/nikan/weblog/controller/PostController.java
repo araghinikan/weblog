@@ -15,6 +15,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 
 @RestController
@@ -48,8 +50,11 @@ public class PostController {
         if (tagDto != null) {
             Tag tag = new Tag();
             tag.setName(tagDto.name());
-            post.setTag(tag);
+            post.setTags(List.of(tag));
+        } else {
+            post.setTags(Collections.emptyList());
         }
+
 
         CategoryDto catDto = dto.category();
         if (catDto != null) {
@@ -119,9 +124,9 @@ public class PostController {
         if (tagDto != null) {
             Tag tag = new Tag();
             tag.setName(tagDto.name());
-            existingPost.setTag(tag);
+            existingPost.setTags(List.of(tag));  // wrap in a List
         } else {
-            existingPost.setTag(null);
+            existingPost.setTags(Collections.emptyList());
         }
 
         CategoryDto catDto = postDto.category();

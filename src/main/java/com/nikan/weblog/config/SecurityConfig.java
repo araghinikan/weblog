@@ -25,27 +25,25 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        http.csrf().disable();
-        http.formLogin(form ->
-                form.loginPage("/login")
+        http
+                .formLogin(form -> form
+                        .loginPage("/auth/login")
+                        .loginProcessingUrl("/auth/login")  // This line is critical
                         .defaultSuccessUrl("/", true)
-                        .failureForwardUrl("/login?error=true")
-        );
+                        .failureUrl("/auth/login?error=true")
+                        .permitAll()
+                )
 
-        http.authorizeHttpRequests(auth ->
-                auth.requestMatchers("/login", "/", "/register", "/users/register").permitAll()
-                        .anyRequest().authenticated());
-
-        http.authorizeHttpRequests(auth ->
-                auth
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/", "/users/register").permitAll()
                         .requestMatchers("/posts/**", "/auth/**").permitAll()
                         .requestMatchers("/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
-        );
-
+                );
 
         return http.build();
     }
+
 
 
     @Bean

@@ -5,6 +5,7 @@ import com.nikan.weblog.dto.UserDto;
 import com.nikan.weblog.model.Role;
 import com.nikan.weblog.model.User;
 import com.nikan.weblog.service.UserServiceImpl;
+import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
@@ -37,12 +38,14 @@ public class UserController {
     }
 
     @PostMapping("/register")
-    public String register(RegisterDto registerDto) {
+    public String register(@Valid RegisterDto registerDto) {
         if(!registerDto.password().equals(registerDto.rePassword())) {
             return "redirect:/register?error=true";
         }
         User user = new User();
         user.setUsername(registerDto.username());
+        user.setFullName(registerDto.fullName());
+        user.setEmail(registerDto.email());
         user.setPassword(passwordEncoder.encode(registerDto.password()));
         user.setRole(Role.USER);
 

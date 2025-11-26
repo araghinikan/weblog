@@ -5,7 +5,10 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Set;
 
+@Entity
 public class Post {
     private int id;
     private String title;
@@ -17,7 +20,7 @@ public class Post {
     private LocalDateTime updatedAt;
     private LocalDateTime createdAt;
     private int views;
-    private Tag tag;
+    private List<Tag> tags;
     private Category category;
     private User author;
 
@@ -116,14 +119,20 @@ public class Post {
         this.author = author;
     }
 
-    @OneToMany
-    public Tag getTag() {
-        return tag;
+    @ManyToMany
+    @JoinTable(
+            name = "post_tag",
+            joinColumns = @JoinColumn(name = "post_id"),
+            inverseJoinColumns = @JoinColumn(name = "tag_id")
+    )
+    public List<Tag> getTags() {
+        return tags;
     }
 
-    public void setTag(Tag tag) {
-        this.tag = tag;
+    public void setTags(List<Tag> tags) {
+        this.tags = tags;
     }
+
 
     @OneToOne
     public Category getCategory() {

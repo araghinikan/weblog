@@ -2,6 +2,7 @@ package com.nikan.weblog.model;
 
 import jakarta.persistence.*;
 
+@Entity
 public class Category {
     private int id;
     private String name;
