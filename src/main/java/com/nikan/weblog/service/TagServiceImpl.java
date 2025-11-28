@@ -21,6 +21,11 @@ public class TagServiceImpl implements TagService {
     }
 
     @Override
+    public List<Tag> findAllById(List<Integer> ids) {
+        return tagRepository.findAllById(ids);
+    }
+
+    @Override
     public Optional<Tag> findById(int id) {
         return tagRepository.findById(id);
     }
@@ -33,5 +38,10 @@ public class TagServiceImpl implements TagService {
     @Override
     public void deleteById(int id) {
         tagRepository.deleteById(id);
+    }
+
+    @Override
+    public Tag findBySlug(String slug) {
+        return tagRepository.findBySlug(slug);
     }
 }

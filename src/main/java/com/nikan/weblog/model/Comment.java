@@ -9,7 +9,7 @@ public class Comment {
     private String content;
     private String authorName;
     private String authorEmail;
-    private String approved;
+    private int approved;
     private Post post;
     private String createdAt;
 
@@ -57,11 +57,11 @@ public class Comment {
         this.authorEmail = authorEmail;
     }
 
-    public String getApproved() {
+    public int getApproved() {
         return approved;
     }
 
-    public void setApproved(String approved) {
+    public void setApproved(int approved) {
         this.approved = approved;
     }
 

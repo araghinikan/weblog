@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>مدیریت پست‌ها</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <meta name="_csrf" th:content="${_csrf.token}">
+    <meta name="_csrf_header" th:content="${_csrf.headerName}">
+    <style>
+        body { font-family: sans-serif; }
+        select[multiple] { min-height: 140px; }
+    </style>
+</head>
+<body class="bg-gray-100 p-6">
+
+<h1 class="text-2xl font-bold mb-6">مدیریت پست‌ها</h1>
+<div id="alertBox" class="hidden mb-4 p-3 rounded"></div>
+
+<!-- فرم افزودن/ویرایش پست -->
+<form id="postForm" class="bg-white p-6 rounded shadow mb-6 space-y-4">
+    <input type="hidden" id="postId" />
+
+    <div>
+        <label class="block mb-1">عنوان</label>
+        <input type="text" id="title" class="w-full border rounded px-3 py-2" required />
+    </div>
+
+    <div class="grid grid-cols-2 gap-4">
+        <div>
+            <label class="block mb-1">خلاصه</label>
+            <input type="text" id="excerpt" class="w-full border rounded px-3 py-2" />
+        </div>
+        <div>
+            <label class="block mb-1">تاریخ انتشار</label>
+            <input type="datetime-local" id="publishedAt" class="w-full border rounded px-3 py-2" />
+        </div>
+    </div>
+
+    <div>
+        <label class="block mb-1">محتوا</label>
+        <textarea id="content" class="w-full border rounded px-3 py-2" rows="6" required></textarea>
+    </div>
+
+    <div class="grid grid-cols-3 gap-4">
+        <div>
+            <label class="block mb-1">دسته‌بندی</label>
+            <select id="category" class="w-full border rounded px-3 py-2"></select>
+            <small class="text-gray-500">انتخاب دسته‌بندی برای ذخیره با شناسه</small>
+        </div>
+        <div>
+            <label class="block mb-1">برچسب‌ها</label>
+            <select id="tags" class="w-full border rounded px-3 py-2" multiple></select>
+            <small class="text-gray-500">با نگه داشتن Ctrl/Shift چند برچسب انتخاب کنید</small>
+        </div>
+        <div>
+            <label class="block mb-1">وضعیت</label>
+            <select id="status" class="w-full border rounded px-3 py-2">
+                <option value="DRAFT">پیش‌نویس</option>
+                <option value="PUBLISHED">منتشر شده</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="flex gap-4">
+        <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">ذخیره</button>
+        <button type="button" id="resetBtn" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded">انصراف</button>
+    </div>
+</form>
+
+<!-- جدول نمایش پست‌ها -->
+<div class="bg-white rounded shadow overflow-x-auto">
+    <table class="min-w-full">
+        <thead class="bg-gray-200">
+        <tr>
+            <th class="p-2 text-right">شناسه</th>
+            <th class="p-2 text-right">عنوان</th>
+            <th class="p-2 text-right">خلاصه</th>
+            <th class="p-2 text-right">دسته‌بندی</th>
+            <th class="p-2 text-right">برچسب‌ها</th>
+            <th class="p-2 text-right">وضعیت</th>
+            <th class="p-2 text-right">عملیات</th>
+        </tr>
+        </thead>
+        <tbody id="postsTable"></tbody>
+    </table>
+</div>
+
+<script>
+    const BASE = '/posts';
+    const CSRF_TOKEN = document.querySelector('meta[name="_csrf"]')?.getAttribute('content') || '';
+    const CSRF_HEADER = document.querySelector('meta[name="_csrf_header"]')?.getAttribute('content') || 'X-CSRF-TOKEN';
+
+    function jsonHeaders() {
+        const h = { 'Content-Type': 'application/json' };
+        if (CSRF_TOKEN) h[CSRF_HEADER] = CSRF_TOKEN;
+        return h;
+    }
+
+    function showAlert(type, msg) {
+        const box = document.getElementById('alertBox');
+        box.className = 'mb-4 p-3 rounded ' + (type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800');
+        box.textContent = msg;
+        box.classList.remove('hidden');
+        setTimeout(() => box.classList.add('hidden'), 3500);
+    }
+
+    function escapeHtml(text) {
+        if (text == null) return '';
+        return String(text)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    // ---------- منابع دسته و برچسب ----------
+    async function loadCategories() {
+        try {
+            const res = await fetch('/categories');
+            if (!res.ok) throw new Error('خطا در دریافت دسته‌بندی‌ها: ' + res.status);
+            const cats = await res.json();
+            const select = document.getElementById('category');
+            select.innerHTML = '<option value="">انتخاب کنید</option>';
+            cats.forEach(c => {
+                select.innerHTML += `<option value="${escapeHtml(c.id)}" data-name="${escapeHtml(c.name)}">${escapeHtml(c.name)}</option>`;
+            });
+        } catch (e) {
+            showAlert('error', e.message);
+        }
+    }
+
+    async function loadTags() {
+        try {
+            const res = await fetch('/tags');
+            if (!res.ok) throw new Error('خطا در دریافت برچسب‌ها: ' + res.status);
+            const tags = await res.json();
+            const select = document.getElementById('tags');
+            select.innerHTML = '';
+            tags.forEach(t => {
+                select.innerHTML += `<option value="${escapeHtml(t.id)}">${escapeHtml(t.name)}</option>`;
+            });
+        } catch (e) {
+            showAlert('error', e.message);
+        }
+    }
+
+    // ---------- لود پست‌ها ----------
+    async function loadPosts() {
+        try {
+            const res = await fetch(BASE);
+            if (!res.ok) {
+                const text = await res.text();
+                throw new Error('خطا در دریافت پست‌ها: ' + res.status + ' - ' + text.slice(0,120));
+            }
+            const page = await res.json();
+            const posts = Array.isArray(page) ? page : (page.content || []);
+            const tbody = document.getElementById('postsTable');
+            tbody.innerHTML = '';
+            posts.forEach(p => {
+                const id = escapeHtml(p.id);
+                const title = escapeHtml(p.title);
+                const excerpt = escapeHtml(p.excerpt || '');
+                const categoryName = escapeHtml(p.categoryName || '');
+                const tagsStr = (p.tagNames || []).map(escapeHtml).join(', ');
+                const status = escapeHtml(p.status || '');
+
+                tbody.innerHTML += `
+            <tr class="border-t">
+              <td class="p-2">${id}</td>
+              <td class="p-2">${title}</td>
+              <td class="p-2">${excerpt}</td>
+              <td class="p-2">${categoryName}</td>
+              <td class="p-2">${tagsStr}</td>
+              <td class="p-2">${status}</td>
+              <td class="p-2">
+                <div class="flex gap-2">
+                  <button class="bg-yellow-500 hover:bg-yellow-600 text-white px-2 py-1 rounded" onclick="editPost(${Number(id)})">ویرایش</button>
+                  <button class="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded" onclick="deletePost(${Number(id)})">حذف</button>
+                </div>
+              </td>
+            </tr>`;
+            });
+        } catch (e) {
+            showAlert('error', e.message);
+        }
+    }
+
+    // ---------- دریافت یک پست ----------
+    async function fetchPost(id) {
+        const res = await fetch(BASE + '/' + id);
+        if (!res.ok) {
+            const t = await res.text();
+            throw new Error('خطا در دریافت پست: ' + res.status + ' - ' + t.slice(0,120));
+        }
+        return res.json();
+    }
+
+    // ---------- ذخیره پست ----------
+    async function savePost(id, payload) {
+        const url = id ? (BASE + '/' + id) : BASE;
+        const method = id ? 'PUT' : 'POST';
+        try {
+            const res = await fetch(url, { method, headers: jsonHeaders(), body: JSON.stringify(payload) });
+            const text = await res.text();
+            if (!res.ok) {
+                throw new Error('خطا در ذخیره پست: ' + res.status + ' - ' + text.slice(0,120));
+            }
+            showAlert('success', id ? 'پست با موفقیت ویرایش شد.' : 'پست با موفقیت اضافه شد.');
+            await loadPosts();
+        } catch (e) {
+            showAlert('error', e.message);
+        }
+    }
+
+    // ---------- حذف پست ----------
+    async function deletePost(id) {
+        if (!confirm('حذف پست انجام شود؟')) return;
+        try {
+            const headers = CSRF_TOKEN ? { [CSRF_HEADER]: CSRF_TOKEN } : {};
+            const res = await fetch(BASE + '/' + id, { method: 'DELETE', headers });
+            const text = await res.text();
+            if (!res.ok) {
+                throw new Error('خطا در حذف پست: ' + res.status + ' - ' + text.slice(0,120));
+            }
+            showAlert('success', 'پست با موفقیت حذف شد.');
+            await loadPosts();
+        } catch (e) {
+            showAlert('error', e.message);
+        }
+    }
+
+    // ---------- پر کردن فرم برای ویرایش ----------
+    async function editPost(id) {
+        try {
+            const p = await fetchPost(id);
+            document.getElementById('postId').value = p.id ?? '';
+            document.getElementById('title').value = p.title ?? '';
+            document.getElementById('excerpt').value = p.excerpt ?? '';
+            document.getElementById('content').value = p.content ?? '';
+            document.getElementById('status').value = p.status ?? 'DRAFT';
+
+            // تاریخ ISO -> datetime-local
+            const pubEl = document.getElementById('publishedAt');
+            if (p.publishedAt) {
+                const d = new Date(p.publishedAt);
+                const yyyy = d.getFullYear();
+                const mm = String(d.getMonth() + 1).padStart(2, '0');
+                const dd = String(d.getDate()).padStart(2, '0');
+                const HH = String(d.getHours()).padStart(2, '0');
+                const MM = String(d.getMinutes()).padStart(2, '0');
+                pubEl.value = `${yyyy}-${mm}-${dd}T${HH}:${MM}`;
+            } else {
+                pubEl.value = '';
+            }
+
+            // انتخاب دسته‌بندی با id
+            const catSelect = document.getElementById('category');
+            catSelect.value = p.categoryId ?? '';
+
+            // انتخاب برچسب‌ها با id ها
+            const tagSelect = document.getElementById('tags');
+            const ids = Array.isArray(p.tagIds) ? p.tagIds.map(String) : [];
+            [...tagSelect.options].forEach(opt => {
+                opt.selected = ids.includes(String(opt.value));
+            });
+        } catch (e) {
+            showAlert('error', e.message);
+        }
+    }
+
+    // ---------- ساخت payload مطابق PostDto ----------
+    function buildPostPayload() {
+        const title = document.getElementById('title').value.trim();
+        const content = document.getElementById('content').value.trim();
+        const excerpt = document.getElementById('excerpt').value.trim();
+        const status = document.getElementById('status').value;
+
+        // تبدیل datetime-local به ISO
+        const publishedInput = document.getElementById('publishedAt').value; // yyyy-MM-ddTHH:mm
+        const publishedAt = publishedInput ? new Date(publishedInput).toISOString() : null;
+
+        // دسته‌بندی: id
+        const catVal = document.getElementById('category').value || null;
+        const categoryId = catVal ? Number(catVal) : null;
+
+        // برچسب‌ها: لیست id ها
+        const tagIds = [...document.getElementById('tags').selectedOptions].map(o => Number(o.value));
+
+        return {
+            title,
+            content,
+            excerpt,
+            status,
+            publishedAt,
+            views: 0,           // بک‌اند مقداردهی می‌کند؛ برای سازگاری صفر می‌فرستیم
+            categoryId,
+            categoryName: null, // فقط برای پاسخ استفاده می‌شود؛ سمت درخواست مقدار نمی‌دهیم
+            tagIds,
+            tagNames: []        // فقط برای پاسخ استفاده می‌شود؛ سمت درخواست مقدار نمی‌دهیم
+        };
+    }
+
+    // ---------- ارسال فرم ----------
+    document.getElementById('postForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const idVal = document.getElementById('postId').value;
+        const id = idVal ? Number(idVal) : null;
+        const payload = buildPostPayload();
+
+        if (!payload.title || !payload.content) {
+            showAlert('error', 'عنوان و محتوا الزامی هستند.');
+            return;
+        }
+
+        await savePost(id, payload);
+        e.target.reset();
+        document.getElementById('postId').value = '';
+    });
+
+    // ---------- ریست فرم ----------
+    document.getElementById('resetBtn').addEventListener('click', () => {
+        document.getElementById('postForm').reset();
+        document.getElementById('postId').value = '';
+    });
+
+    // ---------- بارگذاری اولیه ----------
+    (async function init() {
+        await loadCategories();
+        await loadTags();
+        await loadPosts();
+    })();
+</script>
+</body>
+</html>

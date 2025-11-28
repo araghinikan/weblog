@@ -1,21 +1,25 @@
 package com.nikan.weblog.controller;
 
 import com.nikan.weblog.dto.PostDto;
-import com.nikan.weblog.dto.UserDto;
-import com.nikan.weblog.dto.TagDto;
-import com.nikan.weblog.dto.CategoryDto;
-import com.nikan.weblog.model.Post;
-import com.nikan.weblog.model.User;
-import com.nikan.weblog.model.Tag;
 import com.nikan.weblog.model.Category;
+import com.nikan.weblog.model.Post;
+import com.nikan.weblog.model.Tag;
+import com.nikan.weblog.model.User;
+import com.nikan.weblog.service.CategoryService;
 import com.nikan.weblog.service.PostService;
+import com.nikan.weblog.service.TagService;
+import com.nikan.weblog.service.UserService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -24,129 +28,136 @@ import java.util.Optional;
 public class PostController {
 
     private final PostService postService;
+    private final UserService userService;
+    private final CategoryService categoryService;
+    private final TagService tagService;
 
-    public PostController(PostService postService) {
+    public PostController(PostService postService,
+                          UserService userService,
+                          CategoryService categoryService,
+                          TagService tagService) {
         this.postService = postService;
+        this.userService = userService;
+        this.categoryService = categoryService;
+        this.tagService = tagService;
     }
 
-    private Post convertToEntity(PostDto dto) {
-        Post post = new Post();
+    private PostDto toDto(Post post) {
+        Integer categoryId = post.getCategory() != null ? post.getCategory().getId() : null;
+        String categoryName = post.getCategory() != null ? post.getCategory().getName() : null;
+        List<Integer> tagIds = post.getTags() != null
+                ? post.getTags().stream().map(Tag::getId).toList()
+                : List.of();
+        List<String> tagNames = post.getTags() != null
+                ? post.getTags().stream().map(Tag::getName).toList()
+                : List.of();
+
+        return new PostDto(
+                post.getId(),
+                post.getSlug(),
+                post.getTitle(),
+                post.getContent(),
+                post.getExcerpt(),
+                post.getStatus(),
+                post.getPublishedAt(),
+                post.getViews(),
+                categoryId,
+                categoryName,
+                tagIds,
+                tagNames
+        );
+    }
+
+    private void applyDtoToEntity(PostDto dto, Post post, Authentication auth) {
         post.setTitle(dto.title());
         post.setContent(dto.content());
         post.setExcerpt(dto.excerpt());
         post.setStatus(dto.status());
         post.setPublishedAt(dto.publishedAt());
-        post.setViews(dto.views());
 
-        UserDto userDto = dto.author();
-        if (userDto != null) {
-            User user = new User();
-            user.setUsername(userDto.username());
-            user.setRole(userDto.role());
-            post.setAuthor(user);
-        }
+        User user = userService.findByUsername(auth.getName())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+        post.setAuthor(user);
 
-        TagDto tagDto = dto.tag();
-        if (tagDto != null) {
-            Tag tag = new Tag();
-            tag.setName(tagDto.name());
-            post.setTags(List.of(tag));
-        } else {
-            post.setTags(Collections.emptyList());
-        }
-
-
-        CategoryDto catDto = dto.category();
-        if (catDto != null) {
-            Category category = new Category();
-            category.setName(catDto.name());
-            category.setDescription(catDto.description());
+        if (dto.categoryId() != null) {
+            Category category = categoryService.findById(dto.categoryId())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Category not found"));
             post.setCategory(category);
+        } else {
+            post.setCategory(null);
         }
 
-        return post;
+        if (dto.tagIds() != null && !dto.tagIds().isEmpty()) {
+            List<Tag> tags = new ArrayList<>();
+            for (Integer id : dto.tagIds()) {
+                Tag tag = tagService.findById(id)
+                        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Tag not found: " + id));
+                tags.add(tag);
+            }
+            post.setTags(tags);
+        } else {
+            post.setTags(new ArrayList<>()); // ✅ mutable list
+        }
     }
 
     @GetMapping
-    public ResponseEntity<Page<Post>> getAll(Pageable pageable) {
+    public ResponseEntity<Page<PostDto>> getAll(Pageable pageable) {
         Page<Post> posts = postService.findAll(pageable);
-        return ResponseEntity.ok(posts);
+        return ResponseEntity.ok(posts.map(this::toDto));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Post> getById(@PathVariable int id) {
-        Optional<Post> post = postService.findById(id);
-        return post.map(ResponseEntity::ok)
+    public ResponseEntity<PostDto> getById(@PathVariable Integer id) {
+        return postService.findById(id)
+                .map(p -> ResponseEntity.ok(toDto(p)))
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     @GetMapping("/slug/{slug}")
-    public ResponseEntity<Post> getBySlug(@PathVariable String slug) {
-        Optional<Post> post = postService.findBySlug(slug);
-        return post.map(ResponseEntity::ok)
+    public ResponseEntity<PostDto> getBySlug(@PathVariable String slug) {
+        return postService.findBySlug(slug)
+                .map(p -> ResponseEntity.ok(toDto(p)))
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     @PostMapping
-    public ResponseEntity<Post> save(@Valid @RequestBody PostDto postDto) {
-        Post post = convertToEntity(postDto);
-        Post savedPost = postService.save(post);
-        return ResponseEntity.ok(savedPost);
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<PostDto> save(@Valid @RequestBody PostDto dto, Authentication auth) {
+        Post post = new Post();
+        post.setViews(0);
+        applyDtoToEntity(dto, post, auth);
+        Post saved = postService.save(post);
+
+        // regenerate slug after id assigned
+        if (saved.getSlug() == null || saved.getSlug().isBlank()) {
+            saved.setSlug(saved.getTitle() + "-" + saved.getId());
+            saved = postService.save(saved);
+        }
+
+        return ResponseEntity.ok(toDto(saved));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Post> updatePost(@PathVariable int id, @Valid @RequestBody PostDto postDto) {
-        Optional<Post> optionalPost = postService.findById(id);
-        if (optionalPost.isEmpty()) {
-            return ResponseEntity.notFound().build();
-        }
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<PostDto> update(@PathVariable Integer id,
+                                          @Valid @RequestBody PostDto dto,
+                                          Authentication auth) {
+        Optional<Post> opt = postService.findById(id);
+        if (opt.isEmpty()) return ResponseEntity.notFound().build();
 
-        Post existingPost = optionalPost.get();
-
-        existingPost.setTitle(postDto.title());
-        existingPost.setContent(postDto.content());
-        existingPost.setExcerpt(postDto.excerpt());
-        existingPost.setStatus(postDto.status());
-        existingPost.setPublishedAt(postDto.publishedAt());
-        existingPost.setViews(postDto.views());
-
-        UserDto userDto = postDto.author();
-        if (userDto != null) {
-            User author = new User();
-            author.setUsername(userDto.username());
-            author.setRole(userDto.role());
-            existingPost.setAuthor(author);
-        } else {
-            existingPost.setAuthor(null);
-        }
-
-        TagDto tagDto = postDto.tag();
-        if (tagDto != null) {
-            Tag tag = new Tag();
-            tag.setName(tagDto.name());
-            existingPost.setTags(List.of(tag));  // wrap in a List
-        } else {
-            existingPost.setTags(Collections.emptyList());
-        }
-
-        CategoryDto catDto = postDto.category();
-        if (catDto != null) {
-            Category category = new Category();
-            category.setName(catDto.name());
-            category.setDescription(catDto.description());
-            existingPost.setCategory(category);
-        } else {
-            existingPost.setCategory(null);
-        }
-
-        Post savedPost = postService.save(existingPost);
-        return ResponseEntity.ok(savedPost);
+        Post post = opt.get();
+        applyDtoToEntity(dto, post, auth);
+        Post saved = postService.save(post);
+        return ResponseEntity.ok(toDto(saved));
     }
 
-
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> delete(@PathVariable int id) {
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> delete(@PathVariable Integer id) {
+        if (postService.findById(id).isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
         postService.deleteById(id);
-        return ResponseEntity.ok().build();
+        return ResponseEntity.noContent().build();
     }
 }

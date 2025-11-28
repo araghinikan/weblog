@@ -4,6 +4,7 @@ package com.nikan.weblog.model;
 import jakarta.persistence.*;
 import org.hibernate.annotations.CreationTimestamp;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Entity
 @Table(name = "APPLICATION_USER")
@@ -13,6 +14,7 @@ public class User {
     private String FullName;
     private String email;
     private String password;
+    private List<Post> posts;
     private LocalDateTime createdAt;
     private Role role;
 
@@ -74,5 +76,14 @@ public class User {
 
     public void setRole(Role role) {
         this.role = role;
+    }
+
+    @OneToMany(fetch = FetchType.EAGER, mappedBy = "author")
+    public List<Post> getPosts() {
+        return posts;
+    }
+
+    public void setPosts(List<Post> posts) {
+        this.posts = posts;
     }
 }

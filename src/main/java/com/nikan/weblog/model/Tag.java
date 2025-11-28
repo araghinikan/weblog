@@ -2,11 +2,14 @@ package com.nikan.weblog.model;
 
 import jakarta.persistence.*;
 
+import java.util.List;
+
 @Entity
 public class Tag {
     private int id;
     private String name;
     private String slug;
+    private List<Post> posts;
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -32,6 +35,15 @@ public class Tag {
 
     public void setSlug(String slug) {
         this.slug = slug;
+    }
+
+    @ManyToMany(fetch = FetchType.EAGER)
+    public List<Post> getPost() {
+        return posts;
+    }
+
+    public void setPost(List<Post> posts) {
+        this.posts = posts;
     }
 
     @PrePersist

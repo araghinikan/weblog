@@ -18,7 +18,7 @@ public record CommentDto(
         String authorEmail,
 
         @NotBlank(message = "Approved field is required")
-        String approved,
+        int approved,
 
         Post post
 ) {}

@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>مدیریت دسته‌بندی‌ها و برچسب‌ها</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+
+    <!-- CSRF (برای Spring Security) -->
+    <meta name="_csrf" th:content="${_csrf.token}">
+    <meta name="_csrf_header" th:content="${_csrf.headerName}">
+</head>
+<body class="container py-4">
+
+<h1 class="mb-4">مدیریت دسته‌بندی‌ها و برچسب‌ها</h1>
+
+<div id="alertBox" class="alert d-none" role="alert"></div>
+
+<!-- دسته‌بندی‌ها -->
+<section class="mb-5">
+    <h2 class="mb-3">دسته‌بندی‌ها</h2>
+    <form id="categoryForm" class="row g-3 mb-3">
+        <input type="hidden" id="categoryId">
+        <div class="col-md-4">
+            <input type="text" id="categoryName" class="form-control" placeholder="نام دسته‌بندی" required>
+        </div>
+        <div class="col-md-6">
+            <input type="text" id="categoryDescription" class="form-control" placeholder="توضیحات">
+        </div>
+        <div class="col-md-2 d-flex gap-2">
+            <button type="submit" class="btn btn-primary w-100">ذخیره</button>
+            <button type="button" class="btn btn-secondary w-100" id="categoryResetBtn">انصراف</button>
+        </div>
+    </form>
+
+    <table class="table table-bordered table-hover" id="categoriesTable">
+        <thead class="table-light">
+        <tr>
+            <th style="width: 120px;">شناسه</th>
+            <th>نام</th>
+            <th>توضیحات</th>
+            <th style="width: 200px;">عملیات</th>
+        </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+</section>
+
+<!-- برچسب‌ها -->
+<section>
+    <h2 class="mb-3">برچسب‌ها</h2>
+    <form id="tagForm" class="row g-3 mb-3">
+        <input type="hidden" id="tagId">
+        <div class="col-md-8">
+            <input type="text" id="tagName" class="form-control" placeholder="نام برچسب" required>
+        </div>
+        <div class="col-md-4 d-flex gap-2">
+            <button type="submit" class="btn btn-primary w-100">ذخیره</button>
+            <button type="button" class="btn btn-secondary w-100" id="tagResetBtn">انصراف</button>
+        </div>
+    </form>
+
+    <table class="table table-bordered table-hover" id="tagsTable">
+        <thead class="table-light">
+        <tr>
+            <th style="width: 120px;">شناسه</th>
+            <th>نام</th>
+            <th style="width: 200px;">عملیات</th>
+        </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+</section>
+
+<script>
+    // خواندن CSRF از meta (برای درخواست‌های POST/PUT/DELETE)
+    const CSRF_TOKEN = document.querySelector('meta[name="_csrf"]')?.getAttribute('content') || '';
+    const CSRF_HEADER = document.querySelector('meta[name="_csrf_header"]')?.getAttribute('content') || 'X-CSRF-TOKEN';
+
+    // اگر اپ شما روی کانتکست‌پث خاصی دیپلوی شده، اینجا ست کنید. مثلا '/weblog'
+    const BASE = ''; // مثلا '/weblog' اگر لازم بود
+
+    // کمک برای نمایش پیام‌ها
+    function showAlert(type, message) {
+        const box = document.getElementById('alertBox');
+        box.className = `alert alert-${type}`;
+        box.textContent = message;
+        box.classList.remove('d-none');
+        setTimeout(() => box.classList.add('d-none'), 4000);
+    }
+
+    // کمکی: ساخت گزینه‌های header با CSRF
+    function jsonHeaders() {
+        const headers = { 'Content-Type': 'application/json' };
+        if (CSRF_TOKEN) headers[CSRF_HEADER] = CSRF_TOKEN;
+        return headers;
+    }
+
+    // امن‌سازی مقادیر برای استفاده در HTML (پرهیز از شکستن رشته‌ها)
+    function escapeHtml(text) {
+        if (text == null) return '';
+        return String(text)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    // ===== دسته‌بندی‌ها =====
+    async function loadCategories() {
+        try {
+            const res = await fetch(`${BASE}/categories`, { method: 'GET' });
+            if (!res.ok) {
+                const t = await res.text();
+                showAlert('danger', `خطا در دریافت دسته‌بندی‌ها: ${res.status} - ${t}`);
+                return;
+            }
+            const categories = await res.json();
+            const tbody = document.querySelector('#categoriesTable tbody');
+            tbody.innerHTML = '';
+            categories.forEach(c => {
+                const id = escapeHtml(c.id);
+                const name = escapeHtml(c.name);
+                const description = escapeHtml(c.description || '');
+
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${id}</td>
+                        <td>${name}</td>
+                        <td>${description}</td>
+                        <td class="d-flex gap-2">
+                            <button class="btn btn-sm btn-warning" onclick="editCategory('${id}', '${name}', '${description}')">ویرایش</button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteCategory('${id}')">حذف</button>
+                        </td>
+                    </tr>`;
+            });
+        } catch (err) {
+            showAlert('danger', `اشکال در ارتباط با سرور (دسته‌بندی‌ها): ${err.message}`);
+            console.error(err);
+        }
+    }
+
+    async function saveCategory(id, name, description) {
+        const payload = { name, description };
+        const url = id ? `${BASE}/categories/${id}` : `${BASE}/categories`;
+        const method = id ? 'PUT' : 'POST';
+
+        try {
+            const res = await fetch(url, {
+                method,
+                headers: jsonHeaders(),
+                body: JSON.stringify(payload)
+            });
+            if (!res.ok) {
+                const text = await res.text();
+                showAlert('danger', `خطا در ذخیره دسته‌بندی: ${res.status} - ${text}`);
+                return;
+            }
+            showAlert('success', id ? 'دسته‌بندی با موفقیت ویرایش شد.' : 'دسته‌بندی با موفقیت اضافه شد.');
+            await loadCategories();
+        } catch (err) {
+            showAlert('danger', `اشکال در ذخیره دسته‌بندی: ${err.message}`);
+            console.error(err);
+        }
+    }
+
+    async function deleteCategory(id) {
+        if (!confirm('حذف دسته‌بندی انجام شود؟')) return;
+        try {
+            const res = await fetch(`${BASE}/categories/${id}`, {
+                method: 'DELETE',
+                headers: CSRF_TOKEN ? { [CSRF_HEADER]: CSRF_TOKEN } : {}
+            });
+            if (!res.ok) {
+                const text = await res.text();
+                showAlert('danger', `خطا در حذف دسته‌بندی: ${res.status} - ${text}`);
+                return;
+            }
+            showAlert('success', 'دسته‌بندی با موفقیت حذف شد.');
+            await loadCategories();
+        } catch (err) {
+            showAlert('danger', `اشکال در حذف دسته‌بندی: ${err.message}`);
+            console.error(err);
+        }
+    }
+
+    function editCategory(id, name, description) {
+        document.getElementById('categoryId').value = id;
+        document.getElementById('categoryName').value = name;
+        document.getElementById('categoryDescription').value = description;
+    }
+
+    document.getElementById('categoryForm').addEventListener('submit', async e => {
+        e.preventDefault();
+        const id = document.getElementById('categoryId').value || null;
+        const name = document.getElementById('categoryName').value.trim();
+        const description = document.getElementById('categoryDescription').value.trim();
+        if (!name) return showAlert('warning', 'نام دسته‌بندی را وارد کنید.');
+        await saveCategory(id, name, description);
+        e.target.reset();
+        document.getElementById('categoryId').value = '';
+    });
+
+    document.getElementById('categoryResetBtn').addEventListener('click', () => {
+        document.getElementById('categoryForm').reset();
+        document.getElementById('categoryId').value = '';
+    });
+
+    // ===== برچسب‌ها =====
+    async function loadTags() {
+        try {
+            const res = await fetch(`${BASE}/tags`, { method: 'GET' });
+            if (!res.ok) {
+                const t = await res.text();
+                showAlert('danger', `خطا در دریافت برچسب‌ها: ${res.status} - ${t}`);
+                return;
+            }
+            const tags = await res.json();
+            const tbody = document.querySelector('#tagsTable tbody');
+            tbody.innerHTML = '';
+            tags.forEach(t => {
+                const id = escapeHtml(t.id);
+                const name = escapeHtml(t.name);
+
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${id}</td>
+                        <td>${name}</td>
+                        <td class="d-flex gap-2">
+                            <button class="btn btn-sm btn-warning" onclick="editTag('${id}', '${name}')">ویرایش</button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteTag('${id}')">حذف</button>
+                        </td>
+                    </tr>`;
+            });
+        } catch (err) {
+            showAlert('danger', `اشکال در ارتباط با سرور (برچسب‌ها): ${err.message}`);
+            console.error(err);
+        }
+    }
+
+    async function saveTag(id, name) {
+        const payload = { name };
+        const url = id ? `${BASE}/tags/${id}` : `${BASE}/tags`;
+        const method = id ? 'PUT' : 'POST';
+
+        try {
+            const res = await fetch(url, {
+                method,
+                headers: jsonHeaders(),
+                body: JSON.stringify(payload)
+            });
+            if (!res.ok) {
+                const text = await res.text();
+                showAlert('danger', `خطا در ذخیره برچسب: ${res.status} - ${text}`);
+                return;
+            }
+            showAlert('success', id ? 'برچسب با موفقیت ویرایش شد.' : 'برچسب با موفقیت اضافه شد.');
+            await loadTags();
+        } catch (err) {
+            showAlert('danger', `اشکال در ذخیره برچسب: ${err.message}`);
+            console.error(err);
+        }
+    }
+
+    async function deleteTag(id) {
+        if (!confirm('حذف برچسب انجام شود؟')) return;
+        try {
+            const res = await fetch(`${BASE}/tags/${id}`, {
+                method: 'DELETE',
+                headers: CSRF_TOKEN ? { [CSRF_HEADER]: CSRF_TOKEN } : {}
+            });
+            if (!res.ok) {
+                const text = await res.text();
+                showAlert('danger', `خطا در حذف برچسب: ${res.status} - ${text}`);
+                return;
+            }
+            showAlert('success', 'برچسب با موفقیت حذف شد.');
+            await loadTags();
+        } catch (err) {
+            showAlert('danger', `اشکال در حذف برچسب: ${err.message}`);
+            console.error(err);
+        }
+    }
+
+    function editTag(id, name) {
+        document.getElementById('tagId').value = id;
+        document.getElementById('tagName').value = name;
+    }
+
+    document.getElementById('tagForm').addEventListener('submit', async e => {
+        e.preventDefault();
+        const id = document.getElementById('tagId').value || null;
+        const name = document.getElementById('tagName').value.trim();
+        if (!name) return showAlert('warning', 'نام برچسب را وارد کنید.');
+        await saveTag(id, name);
+        e.target.reset();
+        document.getElementById('tagId').value = '';
+    });
+
+    document.getElementById('tagResetBtn').addEventListener('click', () => {
+        document.getElementById('tagForm').reset();
+        document.getElementById('tagId').value = '';
+    });
+
+    // بارگذاری اولیه
+    loadCategories();
+    loadTags();
+</script>
+</body>
+</html>

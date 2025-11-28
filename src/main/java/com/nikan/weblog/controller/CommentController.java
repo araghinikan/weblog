@@ -37,6 +37,7 @@ public class CommentController {
     @PostMapping
     public ResponseEntity<Comment> saveComment(@Valid @RequestBody CommentDto commentDto) {
         Comment comment = convertToEntity(commentDto);
+        comment.setApproved(0);
         Comment savedComment = commentService.save(comment);
         return ResponseEntity.ok(savedComment);
     }

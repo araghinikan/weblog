@@ -5,7 +5,6 @@ import com.nikan.weblog.model.Post;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -37,25 +36,20 @@ public class PageController {
     }
 
     @GetMapping("/admin/posts")
-    @PreAuthorize("hasAuthority('ADMIN')")
-    public String adminPosts() {
-        return "admin/posts-list";
-    }
-
-    @GetMapping("/admin/posts/edit")
-    @PreAuthorize("hasAuthority('ADMIN')")
-    public String adminPostEdit() {
-        return "admin/post-form";
+    public String adminPosts(Model model, Pageable pageable) {
+        Page<Post> page = postService.findAll(pageable);
+        model.addAttribute("posts", page != null ? page : Page.empty());
+        return "admin/posts";
     }
 
     @GetMapping("/admin/categories-tags")
-    @PreAuthorize("hasAuthority('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     public String adminCategoriesTags() {
         return "admin/categories-tags";
     }
 
     @GetMapping("/admin/comments")
-    @PreAuthorize("hasAuthority('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     public String adminComments() {
         return "admin/comments";
     }
