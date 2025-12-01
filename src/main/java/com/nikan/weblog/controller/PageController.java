@@ -8,6 +8,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 
 @Controller
 public class PageController {
@@ -53,4 +54,20 @@ public class PageController {
     public String adminComments() {
         return "admin/comments";
     }
+
+    @GetMapping("/admin/users")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String adminUsers() {
+        return "admin/users";
+    }
+
+    @GetMapping("/posts/view/{slug}")
+    public String showPost(@PathVariable String slug, Model model) {
+        Post post = postService.findBySlug(slug)
+                .orElseThrow(() -> new IllegalArgumentException("Post not found"));
+        model.addAttribute("post", post);
+        model.addAttribute("comments", post.getComments());
+        return "post";
+    }
+
 }

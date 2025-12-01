@@ -10,7 +10,8 @@ import java.util.List;
 public record PostDto(
         Integer id,
         String slug,
-        @NotBlank @Size(max = 255) String title,
+        @NotBlank @Size(max = 255)
+        String title,
         @NotBlank String content,
         String excerpt,
         Status status,

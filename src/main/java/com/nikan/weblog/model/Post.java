@@ -22,6 +22,7 @@ public class Post {
     private List<Tag> tags;
     private Category category;
     private User author;
+    private List<Comment>  comments;
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -137,12 +138,19 @@ public class Post {
         this.category = category;
     }
 
+    @OneToMany
+    public List<Comment> getComments() {
+        return comments;
+    }
+
+    public void setComments(List<Comment> comments) {
+        this.comments = comments;
+    }
+
     @PrePersist
-    @PreUpdate
     public void generateSlug() {
         if (this.slug == null || this.slug.isBlank()) {
-            String base = this.title + "-" + this.id;
-            this.slug = slugify(base);
+            this.slug = slugify(this.title + "-" + System.currentTimeMillis());
         }
     }
 

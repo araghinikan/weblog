@@ -47,11 +47,9 @@ public class Tag {
     }
 
     @PrePersist
-    @PreUpdate
     public void generateSlug() {
         if (this.slug == null || this.slug.isBlank()) {
-            String base = this.name + "-" + this.id;
-            this.slug = slugify(base);
+            this.slug = slugify(this.name + "-" + System.currentTimeMillis());
         }
     }
 

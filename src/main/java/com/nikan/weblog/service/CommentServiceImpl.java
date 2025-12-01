@@ -2,6 +2,8 @@ package com.nikan.weblog.service;
 
 import com.nikan.weblog.model.Comment;
 import com.nikan.weblog.repository.CommentRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -33,5 +35,18 @@ public class CommentServiceImpl implements CommentService {
     @Override
     public void deleteById(int id) {
         commentRepository.deleteById(id);
+    }
+
+    @Override
+    public Page<Comment> findAll(Pageable pageable) {
+        return commentRepository.findAll(pageable);
+    }
+
+    @Override
+    public Comment approveComment(int id) {
+        Comment comment = commentRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Comment not found with id " + id));
+        comment.setApproved(1);
+        return commentRepository.save(comment);
     }
 }

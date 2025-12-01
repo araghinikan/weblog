@@ -1,5 +1,7 @@
 package com.nikan.weblog.controller;
 
+import com.nikan.weblog.dto.CommentDto;
+import com.nikan.weblog.dto.PostAndCommentDto;
 import com.nikan.weblog.dto.PostDto;
 import com.nikan.weblog.model.Category;
 import com.nikan.weblog.model.Post;
@@ -160,4 +162,30 @@ public class PostController {
         postService.deleteById(id);
         return ResponseEntity.noContent().build();
     }
+
+    @GetMapping("/{id}/with-comments")
+    public ResponseEntity<PostAndCommentDto> getPostWithComments(@PathVariable Integer id) {
+        return postService.findById(id)
+                .map(post -> {
+                    List<CommentDto> commentDtos = post.getComments().stream()
+                            .map(c -> new CommentDto(c.getId(), c.getContent(), c.getAuthorName(),
+                                    c.getAuthorEmail(), c.getApproved(), c.getPost().getId() , c.getCreatedAt()))
+                            .toList();
+                    PostAndCommentDto dto = new PostAndCommentDto();
+                    dto.setPostId(post.getId());
+                    dto.setTitle(post.getTitle());
+                    dto.setExcerpt(post.getExcerpt());
+                    dto.setContent(post.getContent());
+                    dto.setSlug(post.getSlug());
+                    dto.setPublishedAt(post.getPublishedAt());
+                    dto.setViews(post.getViews());
+                    dto.setCategoryName(post.getCategory() != null ? post.getCategory().getName() : null);
+                    dto.setAuthorUsername(post.getAuthor() != null ? post.getAuthor().getUsername() : null);
+                    dto.setComments(commentDtos);
+                    return ResponseEntity.ok(dto);
+                })
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+
 }

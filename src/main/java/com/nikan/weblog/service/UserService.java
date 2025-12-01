@@ -8,6 +8,7 @@ import java.util.Optional;
 
 public interface UserService {
     Page<User> findAll(Pageable pageable);
-    void save(User user);
+    User save(User user);
     Optional<User> findByUsername(String name);
+    Optional<User> findById(int id);
 }

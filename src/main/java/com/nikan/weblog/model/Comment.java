@@ -14,7 +14,6 @@ public class Comment {
     private String createdAt;
 
     @ManyToOne
-    @JoinColumn(name = "post_id")
     public Post getPost() {
         return post;
     }

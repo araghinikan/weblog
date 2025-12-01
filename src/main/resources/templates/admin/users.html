@@ -2,7 +2,7 @@
 <html lang="fa" dir="rtl" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
-    <title>مدیریت کامنت‌ها</title>
+    <title>مدیریت کاربران</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-50 min-h-screen flex flex-col">
@@ -16,22 +16,19 @@
 </header>
 
 <main class="container mx-auto px-6 py-10 flex-grow">
-    <input type="hidden" id="csrfToken" th:value="${_csrf.token}"/>
     <section class="bg-white rounded-xl shadow-lg p-8">
-        <h2 class="text-3xl font-bold mb-6 text-gray-900 border-b pb-4">مدیریت کامنت‌ها</h2>
-        <div id="comments-container" class="overflow-x-auto">
+        <h2 class="text-3xl font-bold mb-6 text-gray-900 border-b pb-4">مدیریت کاربران</h2>
+        <div id="users-container" class="overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-100">
                 <tr>
                     <th class="px-6 py-3 text-right text-xs font-medium text-gray-600">شناسه</th>
-                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-600">نام</th>
-                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-600">ایمیل</th>
-                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-600">متن</th>
-                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-600">وضعیت</th>
+                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-600">نام کاربری</th>
+                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-600">نقش</th>
                     <th class="px-6 py-3 text-right text-xs font-medium text-gray-600">عملیات</th>
                 </tr>
                 </thead>
-                <tbody id="comments-table" class="divide-y divide-gray-200"></tbody>
+                <tbody id="users-table" class="divide-y divide-gray-200"></tbody>
             </table>
         </div>
     </section>
@@ -43,78 +40,72 @@
     </div>
 </footer>
 
+<!-- CSRF token -->
+<input type="hidden" id="csrfToken" th:value="${_csrf.token}"/>
+
 <!-- Toast container -->
 <div id="toast-container" class="fixed top-20 right-4 z-50 space-y-4"></div>
 
 <script>
     document.addEventListener('DOMContentLoaded', () => {
-        loadComments();
+        loadUsers();
     });
 
-    function renderComments(comments) {
-        const table = document.getElementById('comments-table');
+    async function loadUsers(page = 0, size = 10) {
+        try {
+            const response = await fetch(`/users?page=${page}&size=${size}`);
+            if (!response.ok) throw new Error("خطا در بارگذاری کاربران");
+            const data = await response.json();
+            renderUsers(data.content);
+        } catch (err) {
+            showToast("❌ " + err.message, "error");
+        }
+    }
+
+    function renderUsers(users) {
+        const table = document.getElementById('users-table');
         table.innerHTML = '';
-        comments.forEach(c => {
+        users.forEach(u => {
             const tr = document.createElement('tr');
             tr.innerHTML = `
-                <td class="px-6 py-4 text-sm text-gray-900">${c.id}</td>
-                <td class="px-6 py-4 text-sm text-gray-900">${escapeHtml(c.authorName)}</td>
-                <td class="px-6 py-4 text-sm text-gray-500">${escapeHtml(c.authorEmail)}</td>
-                <td class="px-6 py-4 text-sm text-gray-700">${escapeHtml(c.content)}</td>
-                <td class="px-6 py-4 text-sm ${c.approved === 1 ? 'text-green-600' : 'text-red-600'}">
-                    ${c.approved === 1 ? 'تأیید شده' : 'در انتظار'}
-                </td>
+                <td class="px-6 py-4 text-sm text-gray-900">${u.id ?? '-'}</td>
+                <td class="px-6 py-4 text-sm text-gray-900">${escapeHtml(u.username)}</td>
+                <td class="px-6 py-4 text-sm ${u.role === 'ADMIN' ? 'text-green-600' : 'text-blue-600'}">${u.role}</td>
                 <td class="px-6 py-4 text-sm">
-                    ${c.approved === 0
-                ? `<button onclick="approveComment(${c.id})" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition">تأیید</button>`
-                : '<span class="text-gray-400">---</span>'}
+                    <select onchange="updateRole(${u.id}, this.value)" class="border rounded px-2 py-1">
+                        <option value="USER" ${u.role === 'USER' ? 'selected' : ''}>USER</option>
+                        <option value="ADMIN" ${u.role === 'ADMIN' ? 'selected' : ''}>ADMIN</option>
+                    </select>
                 </td>
             `;
             table.appendChild(tr);
         });
     }
 
-    async function approveComment(id) {
+    async function updateRole(id, role) {
         try {
             const csrfToken = document.getElementById('csrfToken')?.value;
-            console.log("Approving comment with id:", id, "csrf:", csrfToken);
-
-            const response = await fetch(`/comments/${id}/approve`, {
+            const response = await fetch(`/users/${id}/role?role=${role}`, {
                 method: 'PUT',
                 headers: {
                     'X-CSRF-TOKEN': csrfToken
                 }
             });
 
-            console.log("Approve response status:", response.status);
             const result = await response.json().catch(() => response.text());
-            console.log("Approve response body:", result);
+            console.log("Update role response:", result);
 
-            if (!response.ok) throw new Error("خطا در تأیید کامنت");
-            showToast("✅ کامنت تأیید شد", "success");
-            loadComments();
+            if (!response.ok) {
+                throw new Error(typeof result === 'object' ? JSON.stringify(result) : result);
+            }
+
+            showToast("✅ نقش کاربر تغییر کرد", "success");
+            loadUsers();
         } catch (err) {
-            console.error("Approve error:", err);
+            console.error("Update role error:", err);
             showToast("❌ " + err.message, "error");
         }
     }
-
-    async function loadComments(page = 0, size = 10) {
-        try {
-            console.log("Loading comments page:", page, "size:", size); // ✅ دیباگ
-            const response = await fetch(`/comments/list?page=${page}&size=${size}`);
-            console.log("Load comments status:", response.status); // ✅ دیباگ
-
-            const data = await response.json();
-            console.log("Loaded comments:", data); // ✅ دیباگ
-
-            renderComments(data.content);
-        } catch (err) {
-            console.error("Load comments error:", err); // ✅ دیباگ
-            showToast("❌ " + err.message, "error");
-        }
-    }
-
 
     function escapeHtml(text) {
         const div = document.createElement('div');

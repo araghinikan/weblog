@@ -1,11 +1,11 @@
 package com.nikan.weblog.dto;
 
-import com.nikan.weblog.model.Post;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 public record CommentDto(
+        int id,
         @NotBlank(message = "Content is required")
         String content,
 
@@ -17,8 +17,9 @@ public record CommentDto(
         @NotBlank(message = "Author email is required")
         String authorEmail,
 
-        @NotBlank(message = "Approved field is required")
         int approved,
 
-        Post post
+        int postId,
+
+         String createdAt
 ) {}
